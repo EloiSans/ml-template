@@ -1,0 +1,2 @@
+TRAIN = 'train'
+VAL = 'validation'
