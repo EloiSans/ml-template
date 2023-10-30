@@ -25,7 +25,7 @@ The required parts of the templates are in the following classes
     ```python
    from torch.nn import Module
    class NetExamples(Module):
-       def __init__(self, ..., **kwargs):
+       def __init__(self, **kwargs):
            super(NetExamples, self).__init__()
            ...
     
@@ -72,7 +72,7 @@ The required parts of the templates are in the following classes
    class TensorboardWriter:
        ...
        def _image_transform(self, image):
-           # add transforms depending on self.model_name or self.dataset_name
+           # TODO: add transforms depending on self.model_name or self.dataset_name
            return image
     ```
 6. CSVWriter
@@ -80,7 +80,7 @@ The required parts of the templates are in the following classes
    class FileWriter:
        ...
        def _image_transform(self, image):
-           # add transforms depending on self.model_name or self.dataset_name
+           # TODO: add transforms depending on self.model_name or self.dataset_name
            return image
     ```
 ### Input & Output
@@ -103,6 +103,13 @@ Structure the code with the following rules:
       Loss--6-->Writer;
       Metrics--7-->Writer;
       Dataset--1-->Writer;
+```
+### Env file
+Add an .env file in the project's root path with the following envariables
+```ini
+DATASET_PATH="" # path to find all de datasets
+SAVE_PATH="" # path to save tensorboard data
+EVAL_FREQ=100  # % frequency to print to tensorboard
 ```
 
 ## Features

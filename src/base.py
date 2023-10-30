@@ -6,26 +6,27 @@ from datetime import datetime as dt
 import numpy as np
 import torch
 from torch.nn.functional import fold, unfold
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.dataset import dict_dataset
+from src.loss import dict_loss
 from src.model import dict_model
-from src.utils import dict_optimizers, dict_loss
 from src.utils.constants import TRAIN, VAL
-from src.utils.metrics import MetricCalculator
+from src.utils.metrics import MetricCalculatorExample
+from src.utils.optimizers import dict_optimizer_scheduler, dict_optimizer, SCHED_STEP_PARAM
 from src.utils.visualization import TensorboardWriter, FileWriter
 
 gc.collect()
 torch.cuda.empty_cache()
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 
 class Experiment:
-    def __init__(self, dataset: str, model: str, optimizer: str, loss: str,
+    def __init__(self, dataset: str, model: str, loss: str, optimizer: str,
                  data_params: dict, model_params: dict, loss_params: dict, optim_params: dict,
-                 max_epochs: int = 1000, batch_size: int = 10, resume_path: str = None, metric_track_key: str = None,
-                 metric_track_mode: str = None, **kwargs):
+                 train_params: dict, resume_path: str = None, **kwargs):
 
         self.dataset_name = dataset
         self.dataset = dict_dataset[dataset]
@@ -35,23 +36,28 @@ class Experiment:
         self.model = dict_model[model]
         self.model_params = model_params
 
-        self.optimizer = dict_optimizers[optimizer]
+        self.optimizer = dict_optimizer[optimizer]
         self.optim_params = optim_params
+        self.scheduler_name = optim_params.pop('scheduler', dict_optimizer_scheduler.keys()[0])
+        self.scheduler = dict_optimizer_scheduler[self.scheduler_name]['class']
+        self.scheduler_params = dict_optimizer_scheduler[self.scheduler_name]['params']
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.loss = dict_loss[loss](**loss_params, device=self.device)
-        self.eval_n = max(int(max_epochs * (os.environ.get('EVAL_FREQ', 100) / 100)), 1)
+        self.device = torch.device(train_params.get('device')) if train_params.get('device') else device
+        self.eval_n = max(int(train_params['max_epochs'] * (os.environ.get('EVAL_FREQ', 100) / 100)), 1)
         self.save_path = os.path.join(os.environ["SAVE_PATH"], dataset, dt.now().strftime("%Y-%m-%d"), model)
-        self.max_epochs = max_epochs
-        self.batch_size = batch_size
+        self.max_epochs = train_params['max_epochs']
+        self.batch_size = train_params['batch_size']
+
+        self.loss = dict_loss[loss](**loss_params, device=self.device)
+
         self.resume_path = resume_path
 
         self.writer = None
         self.f_writer = FileWriter
 
-        self.metric_calculator = MetricCalculator
-        self.metric_track_key = metric_track_key
-        self.metric_track_mode = metric_track_mode
+        self.metric_calculator = MetricCalculatorExample
+        self.metric_track_key = train_params['metric_track_key']
+        self.metric_track_mode = train_params['metric_track_mode']
         assert self.metric_track_mode in ['min', 'max']
         self.best_metric = 0 if self.metric_track_mode == 'max' else 1000
 
@@ -78,7 +84,7 @@ class Experiment:
         model.to(self.device)
 
         optimizer = self.optimizer(model.parameters(), **self.optim_params)
-        scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.75, patience=30)
+        scheduler = self.scheduler(optimizer, **self.scheduler_params)
 
         for epoch in range(start_epoch, self.max_epochs):
             model.train()
@@ -87,7 +93,10 @@ class Experiment:
                 model.eval()
                 val_loss, val_loss_comp, val_metrics = self._main_phase(val_loader, VAL, epoch)
 
-            scheduler.step(val_loss)
+            if self.scheduler_name in SCHED_STEP_PARAM:
+                scheduler.step(val_loss)
+            else:
+                scheduler.step()
 
             if epoch % self.eval_n == 0:
                 self.writer.add_losses(train_loss, train_loss_comp, val_loss, val_loss_comp, epoch)
@@ -158,7 +167,7 @@ class Experiment:
     def _main_phase(self, data_loader, phase, epoch=None):
         metrics = self.metric_calculator(len(data_loader))
         epoch_loss = []
-        epoch_loss_components = dict(dice=[], data_term=[], radio_term=[])
+        epoch_loss_components = dict()
         with tqdm(enumerate(data_loader), total=len(data_loader), leave=True) as pbar:
             for idx, batch in pbar:
                 self.optimizer.zero_grad()
@@ -171,8 +180,7 @@ class Experiment:
                 self.writer.add_images(input_data, output_data)
 
                 epoch_loss.append(loss.item())
-                for k in epoch_loss_components.keys():
-                    epoch_loss_components[k].append(loss_components[k].cpu().detach().numpy())
+                epoch_loss_components = self._set_loss_components(epoch_loss_components, loss_components)
 
                 if phase == TRAIN:
                     loss.backward()
@@ -205,6 +213,16 @@ class Experiment:
             result = self.best_metric < value
             self.best_metric = max(self.best_metric, value)
         return result
+
+    @staticmethod
+    def _set_loss_components(epoch_loss_components, loss_components):
+        for k in epoch_loss_components.keys():
+            v = loss_components[k].cpu().detach().numpy()
+            try:
+                epoch_loss_components[k].append(v)
+            except KeyError:
+                epoch_loss_components.update({k: [v]})
+        return epoch_loss_components
 
 
 class ParseKwargs(argparse.Action):

@@ -4,7 +4,7 @@ from torchmetrics.functional.image import spectral_angle_mapper as SAM
 from torchmetrics.functional.image import structural_similarity_index_measure as SSIM
 
 
-class MetricCalculator(dict):
+class MetricCalculatorExample(dict):
     def __init__(self, dataset_len, sampling_factor=4):
         super().__init__()
 

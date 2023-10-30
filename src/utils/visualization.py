@@ -91,12 +91,13 @@ class FileWriter:
         self._write_row(metrics)
 
     def _write_row(self, metrics):
-        write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
+        exists = os.path.exists(self.csv_path)
+        write_mode = 'a' if exists else 'w'
         if not os.path.exists(self.csv_path):
             os.makedirs(self.output_path, exist_ok=True)
         with open(self.csv_path, write_mode) as f:
             w = csv.DictWriter(f, metrics.keys())
-            if write_mode == 'w':
+            if not exists:
                 w.writeheader()
             w.writerow(metrics)
 
