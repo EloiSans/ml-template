@@ -79,7 +79,7 @@ class Experiment:
         train_loader = DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=self.workers)
 
         dataset_val = self.dataset(**self.data_params, fold=VAL)
-        val_loader = DataLoader(dataset_val, batch_size=1, shuffle=False, num_workers=self.workers)
+        val_loader = DataLoader(dataset_val, batch_size=3, shuffle=False, num_workers=self.workers)
 
         model, start_epoch = self._init_model()
 
@@ -171,6 +171,7 @@ class Experiment:
         metrics = self.metric_calculator(len(data_loader))
         epoch_loss = []
         epoch_loss_components = dict()
+        self.images = list()
         with tqdm(enumerate(data_loader), total=len(data_loader), leave=True) as pbar:
             for idx, batch in pbar:
                 self.optimizer.zero_grad()
@@ -180,8 +181,8 @@ class Experiment:
                 output_data = model(**input_data)
 
                 loss, loss_components = self.loss(**input_data, **output_data)
-                if idx == 0:
-                    self.writer.add_images(input_data, output_data, phase, epoch)
+
+                self._images_to_show(input_data, output_data)
 
                 epoch_loss.append(loss.item())
                 epoch_loss_components = self._set_loss_components(epoch_loss_components, loss_components)
@@ -200,6 +201,7 @@ class Experiment:
 
         epoch_loss = np.array(epoch_loss).mean()
         if epoch % self.eval_n == 0:
+            self.writer.add_images(self.images, phase, epoch)
             self.writer.add_metrics(metrics.dict, phase, epoch)
 
         return epoch_loss, epoch_loss_components, metrics.dict
@@ -227,6 +229,15 @@ class Experiment:
             except KeyError:
                 epoch_loss_components.update({k: [v]})
         return epoch_loss_components
+
+    def _images_to_show(self, input_data, output_data):
+        n_plots = len(input_data) + len(output_data)
+        n_images = 20 // n_plots
+        if not self.images:
+            self.images = list(input_data.items())+list(output_data.items())
+        elif self.images[0][1].shape[0] < n_images:
+            for i, ten in enumerate(list(input_data.items())+list(output_data.items())):
+                self.images[i] = (self.images[i][0], torch.cat([self.images[i][1], ten[1]], dim=0))
 
 
 class ParseKwargs(argparse.Action):
