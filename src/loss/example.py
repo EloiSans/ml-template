@@ -8,7 +8,9 @@ class LossExample(Module):
         self.l1 = L1Loss()
         self.mse = MSELoss()
 
-    def forward(self, pred, target):
+    def forward(self, **kwargs):
+        pred = kwargs['pred']
+        target = kwargs['target']
         mse = self.mse(target, pred)
         l1 = self.alpha * self.l1(pred, target)
         loss = l1 + mse

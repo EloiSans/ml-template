@@ -12,7 +12,7 @@ from tqdm import tqdm
 from src.dataset import dict_dataset
 from src.loss import dict_loss
 from src.model import dict_model
-from src.utils.constants import TRAIN, VAL
+from src.utils.constants import TRAIN, VAL, TEST
 from src.utils.metrics import MetricCalculatorExample
 from src.utils.optimizers import dict_optimizer_scheduler, dict_optimizer, SCHED_STEP_PARAM
 from src.utils.visualization import TensorboardWriter, FileWriter
@@ -27,6 +27,9 @@ class Experiment:
     def __init__(self, dataset: str, model: str, loss: str, optimizer: str,
                  data_params: dict, model_params: dict, loss_params: dict, optim_params: dict,
                  train_params: dict, resume_path: str = None, **kwargs):
+        self.experiment = {'dataset': dataset, 'model': model, 'loss': loss, 'optimizer': optimizer,
+                           'data_params': data_params, 'model_params': model_params, 'loss_params': loss_params,
+                           'optim_params': optim_params, 'train_params': train_params, 'resume_path': resume_path}
 
         self.dataset_name = dataset
         self.dataset = dict_dataset[dataset]
@@ -38,12 +41,12 @@ class Experiment:
 
         self.optimizer = dict_optimizer[optimizer]
         self.optim_params = optim_params
-        self.scheduler_name = optim_params.pop('scheduler', dict_optimizer_scheduler.keys()[0])
+        self.scheduler_name = optim_params.pop('scheduler', list(dict_optimizer_scheduler.keys())[0])
         self.scheduler = dict_optimizer_scheduler[self.scheduler_name]['class']
         self.scheduler_params = dict_optimizer_scheduler[self.scheduler_name]['params']
 
         self.device = torch.device(train_params.get('device')) if train_params.get('device') else device
-        self.eval_n = max(int(train_params['max_epochs'] * (os.environ.get('EVAL_FREQ', 100) / 100)), 1)
+        self.eval_n = max(int(train_params['max_epochs'] * (float(os.environ.get('EVAL_FREQ', 100)) / 100)), 1)
         self.save_path = os.path.join(os.environ["SAVE_PATH"], dataset, dt.now().strftime("%Y-%m-%d"), model)
         self.max_epochs = train_params['max_epochs']
         self.batch_size = train_params['batch_size']
@@ -83,20 +86,20 @@ class Experiment:
         model = model.float()
         model.to(self.device)
 
-        optimizer = self.optimizer(model.parameters(), **self.optim_params)
-        scheduler = self.scheduler(optimizer, **self.scheduler_params)
+        self.optimizer = self.optimizer(model.parameters(), **self.optim_params)
+        self.scheduler = self.scheduler(self.optimizer, **self.scheduler_params)
 
         for epoch in range(start_epoch, self.max_epochs):
             model.train()
-            train_loss, train_loss_comp, train_metrics = self._main_phase(train_loader, TRAIN, epoch)
+            train_loss, train_loss_comp, train_metrics = self._main_phase(model, train_loader, TRAIN, epoch)
             with torch.no_grad():
                 model.eval()
-                val_loss, val_loss_comp, val_metrics = self._main_phase(val_loader, VAL, epoch)
+                val_loss, val_loss_comp, val_metrics = self._main_phase(model, val_loader, VAL, epoch)
 
             if self.scheduler_name in SCHED_STEP_PARAM:
-                scheduler.step(val_loss)
+                self.scheduler.step(val_loss)
             else:
-                scheduler.step()
+                self.scheduler.step()
 
             if epoch % self.eval_n == 0:
                 self.writer.add_losses(train_loss, train_loss_comp, val_loss, val_loss_comp, epoch)
@@ -108,10 +111,10 @@ class Experiment:
             self._save_model(model, 'last', epoch)
         self.writer.close()
 
-    def eval(self, output_path):
+    def test(self, output_path):
         self.writer = FileWriter(self.model_name, self.dataset_name, output_path)
 
-        dataset = self.dataset(**self.data_params, fold=VAL)
+        dataset = self.dataset(**self.data_params, fold=TEST)
         data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.workers)
 
         model, _ = self._init_model()
@@ -122,7 +125,7 @@ class Experiment:
 
         with torch.no_grad():
             model.eval()
-            loss, loss_comp, metrics = self._main_phase(data_loader, VAL)
+            loss, loss_comp, metrics = self._main_phase(model, data_loader, VAL)
 
         csv_save_dict = dict(**metrics, name=self.model_name, params=total_parameters)
 
@@ -135,7 +138,7 @@ class Experiment:
         except FileExistsError:
             pass
         save_path = self.save_path + f'/ckpt/weights_{version}.pth'
-        ckpt = {'experiment': self, 'model': model, 'epoch': epoch}
+        ckpt = {'experiment': self.experiment, 'model': model, 'epoch': epoch}
         torch.save(ckpt, save_path)
 
     def _init_model(self):
@@ -164,7 +167,7 @@ class Experiment:
         patches = patches.view(n, data.size(0), data.size(1) * ps * ps).permute(0, 2, 1)
         return fold(patches, (w, h), kernel_size=ps, stride=ps)
 
-    def _main_phase(self, data_loader, phase, epoch=None):
+    def _main_phase(self, model, data_loader, phase, epoch=None):
         metrics = self.metric_calculator(len(data_loader))
         epoch_loss = []
         epoch_loss_components = dict()
@@ -174,10 +177,11 @@ class Experiment:
 
                 input_data = {k: v.to(self.device) for k, v in batch.items()}
 
-                output_data = self.model(**input_data)
+                output_data = model(**input_data)
 
                 loss, loss_components = self.loss(**input_data, **output_data)
-                self.writer.add_images(input_data, output_data)
+                if idx == 0:
+                    self.writer.add_images(input_data, output_data, phase, epoch)
 
                 epoch_loss.append(loss.item())
                 epoch_loss_components = self._set_loss_components(epoch_loss_components, loss_components)
@@ -188,17 +192,17 @@ class Experiment:
 
                 metrics.add_metrics(**input_data, **output_data)
 
-                if epoch:
-                    pbar.set_description(f'Epoch: {epoch + 1}; {phase} Loss {np.array(epoch_loss).mean():.6f}')
+                if epoch is not None:
+                    pbar.set_description(f'Epoch: {epoch}; {phase} Loss {np.array(epoch_loss).mean():.6f}')
 
         for k in epoch_loss_components.keys():
             epoch_loss_components[k] = np.array(epoch_loss_components[k]).mean()
 
         epoch_loss = np.array(epoch_loss).mean()
         if epoch % self.eval_n == 0:
-            self.writer.add_metrics(metrics, phase, epoch)
+            self.writer.add_metrics(metrics.dict, phase, epoch)
 
-        return epoch_loss, epoch_loss_components, metrics
+        return epoch_loss, epoch_loss_components, metrics.dict
 
     def load_from_dict(self, **ckpt):
         for k, v in ckpt.items():

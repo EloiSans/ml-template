@@ -19,27 +19,29 @@ class TensorboardWriter:
         self.n_images = n_images
 
     def add_metrics(self, metrics, phase, epoch):
-        self.writer.add_scalars(f"{phase}/metrics", metrics, global_step=epoch)
+        self.writer.add_scalars(f"{phase}  metrics", metrics, global_step=epoch)
 
     def add_losses(self, train_loss, train_loss_comp, val_loss, val_loss_comp, epoch):
         self.writer.add_scalars("loss", {"train": train_loss, "val": val_loss}, global_step=epoch)
-        self.writer.add_scalars("loss/train", train_loss_comp, global_step=epoch)
-        self.writer.add_scalars("loss/val", val_loss_comp, global_step=epoch)
+        self.writer.add_scalars("loss_components/train", train_loss_comp, global_step=epoch)
+        self.writer.add_scalars("loss_components/val", val_loss_comp, global_step=epoch)
 
     def add_text(self, title, content, step):
         self.writer.add_text(title, content, step)
 
-    def add_images(self, input_data, output_data):
+    def add_images(self, input_data, output_data, phase, step):
         n_plots = len(input_data) + len(output_data)
+        n_images = min(self.n_images, 20//n_plots)
         height = 3
         width = 3
-        fig, axs = plt.subplots(self.n_images, n_plots, figsize=(5 * width, self.n_images * height))
-        for axs_row, i, k, v in zip(axs, enumerate([input_data.items(), output_data.items()])):
-            axs_row[i].imshow(self._scaleminmax(self._image_transform(v)).detach().numpy())
-            axs_row[i].set_title(k)
+        fig, axs = plt.subplots(n_images, n_plots, figsize=(5 * width, n_images * height))
+        for axs_row in axs:
+            for i, (k, v) in enumerate(list(input_data.items())+list(output_data.items())[:n_images]):
+                axs_row[i].imshow(self._scaleminmax(self._image_transform(torch.squeeze(v, 0))).detach().numpy())
+                axs_row[i].set_title(k)
 
             [ax.axis("off") for ax in axs_row]
-        return fig
+        self.writer.add_figure(f'{phase} images', fig, global_step=step)
 
     @staticmethod
     def _scaleminmax(v, new_min=0, new_max=1):
@@ -48,12 +50,13 @@ class TensorboardWriter:
 
     def _image_transform(self, image):
         # add transforms depending on self.model_name or self.dataset_name
+        image = torch.permute(image, (1, 2, 0))
         return image
 
     def model_info(self):
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in self.model.parameters())
-        self.writer.add_text("model info", f"Trainable params: {trainable_params}\tTotal params: {total_params}")
+        self.writer.add_text("model params", f"Trainable: {trainable_params}\tTotal: {total_params}")
 
     def close(self):
         self.writer.close()
@@ -76,12 +79,12 @@ class FileWriter:
         finally:
             return path
 
-    def add_images(self, input_data, output_data):
+    def add_images(self, input_data, output_data, phase, step):
         for k, v in input_data.items():
-            save_image(self._image_transform(v), join(self.output_path, f'{self.model_name}_{k}.png'))
+            save_image(self._image_transform(v), join(self.output_path, phase, f'{self.model_name}_{k}.png'))
 
         for k, v in output_data.items():
-            save_image(self._image_transform(v), join(self.output_path, f'{self.model_name}_{k}.png'))
+            save_image(self._image_transform(v), join(self.output_path, phase, f'{self.model_name}_{k}.png'))
 
     def add_metrics_to_csv(self, metrics):
         for k, v in metrics.items():

@@ -21,10 +21,10 @@ def load_img(filepath):
 
 def download_bsd300():
     dest = os.environ['DATASET_PATH']
-    output_image_dir = join(dest, "BSDS300/images")
+    output_image_dir = join(dest, "BSDS300")
 
     if not exists(output_image_dir):
-        makedirs(dest)
+        makedirs(dest, exist_ok=True)
         url = "http://www2.eecs.berkeley.edu/Research/Projects/CS/vision/bsds/BSDS300-images.tgz"
         print("downloading url ", url)
 
@@ -47,15 +47,14 @@ def download_bsd300():
 class DatasetExample(Dataset):
     def __init__(self, crop_size, upscale_factor, fold):
         super(DatasetExample, self).__init__()
-        image_dir = join(os.environ['DATASET_PATH'], "BSDS300/images")
-        self.image_filenames = [join(image_dir, fold, x) for x in listdir(image_dir) if is_image_file(x)]
+        image_dir = join(os.environ['DATASET_PATH'], "BSDS300")
+        download_bsd300()
+        self.image_filenames = [join(image_dir, fold, x) for x in listdir(join(image_dir, fold)) if is_image_file(x)]
         self.crop_size = crop_size
         self.upscale_factor = upscale_factor
 
         self.input_transform = self._input_transform(crop_size, upscale_factor)
         self.target_transform = self._target_transform(crop_size)
-
-        download_bsd300()
 
     def __getitem__(self, index):
         input = load_img(self.image_filenames[index])
@@ -65,7 +64,7 @@ class DatasetExample(Dataset):
         if self.target_transform:
             target = self.target_transform(target)
 
-        return input, target
+        return dict(input=input, target=target)
 
     def __len__(self):
         return len(self.image_filenames)
