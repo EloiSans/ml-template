@@ -88,7 +88,7 @@ class Experiment:
 
         self.optimizer = self.optimizer(model.parameters(), **self.optim_params)
         self.scheduler = self.scheduler(self.optimizer, **self.scheduler_params)
-        self.writer.add_model_params()
+        self.writer.add_model_params(model)
         for epoch in range(start_epoch, self.max_epochs):
             model.train()
             train_loss, train_loss_comp, train_metrics = self._main_phase(model, train_loader, TRAIN, epoch)
@@ -105,6 +105,7 @@ class Experiment:
                 self.writer.add_losses(train_loss, train_loss_comp, val_loss, val_loss_comp, epoch)
 
             if self._is_best_metric(val_metrics):
+                self.writer.add_text("best metrics epoch in validation", str(val_metrics), epoch)
                 self.writer.add_metrics(val_metrics, VAL, epoch)
                 self._save_model(model, 'best', epoch)
 

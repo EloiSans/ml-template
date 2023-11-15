@@ -5,7 +5,6 @@ from os.path import join
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import save_image
 
@@ -44,9 +43,9 @@ class TensorboardWriter:
             [ax.axis("off") for ax in axs_row]
         self.writer.add_figure(f'{phase} images', fig, global_step=step)
 
-    def add_model_params(self):
-        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        total_params = sum(p.numel() for p in self.model.parameters())
+    def add_model_params(self, model):
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total_params = sum(p.numel() for p in model.parameters())
         self.writer.add_text("model params", f"Trainable: {trainable_params}\tTotal: {total_params}")
 
     def close(self):
