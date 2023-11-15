@@ -44,7 +44,7 @@ class TensorboardWriter:
             [ax.axis("off") for ax in axs_row]
         self.writer.add_figure(f'{phase} images', fig, global_step=step)
 
-    def model_info(self):
+    def add_model_params(self):
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         total_params = sum(p.numel() for p in self.model.parameters())
         self.writer.add_text("model params", f"Trainable: {trainable_params}\tTotal: {total_params}")

@@ -88,7 +88,7 @@ class Experiment:
 
         self.optimizer = self.optimizer(model.parameters(), **self.optim_params)
         self.scheduler = self.scheduler(self.optimizer, **self.scheduler_params)
-
+        self.writer.add_model_params()
         for epoch in range(start_epoch, self.max_epochs):
             model.train()
             train_loss, train_loss_comp, train_metrics = self._main_phase(model, train_loader, TRAIN, epoch)
