@@ -19,12 +19,12 @@ class TensorboardWriter:
         self.images = list()
 
     def add_metrics(self, metrics, phase, epoch):
-        self.writer.add_scalars(f"{phase} metrics", metrics, global_step=epoch)
+        self.writer.add_scalars(f"Metrics/{phase}", metrics, global_step=epoch)
 
     def add_losses(self, train_loss, train_loss_comp, val_loss, val_loss_comp, epoch):
-        self.writer.add_scalars("loss", {"train": train_loss, "val": val_loss}, global_step=epoch)
-        self.writer.add_scalars("loss_components/train", train_loss_comp, global_step=epoch)
-        self.writer.add_scalars("loss_components/val", val_loss_comp, global_step=epoch)
+        self.writer.add_scalars("Loss", {"train": train_loss, "val": val_loss}, global_step=epoch)
+        self.writer.add_scalars("Loss components/train", train_loss_comp, global_step=epoch)
+        self.writer.add_scalars("Loss components/val", val_loss_comp, global_step=epoch)
 
     def add_text(self, title, content, step):
         self.writer.add_text(title, content, step)
@@ -41,7 +41,7 @@ class TensorboardWriter:
                 axs_row[i].set_title(k)
 
             [ax.axis("off") for ax in axs_row]
-        self.writer.add_figure(f'{phase} images', fig, global_step=step)
+        self.writer.add_figure(f'Images/{phase}', fig, global_step=step)
 
     def add_model_params(self, model):
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

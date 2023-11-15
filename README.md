@@ -9,13 +9,14 @@ The required parts of the templates are in the following classes
    from torch.utils.data import Dataset
  
    class DatasetExample(Dataset):
-       def __init__(self, fold):
+       def __init__(self, fold, **kwargs):
            super(DatasetExample, self).__init__()
            
    
        def __getitem__(self, index):
            input = ...
            target = ...
+           ...
            return dict(input=input, target=target)  # TODO: modify output
    
        def __len__(self):
@@ -23,15 +24,17 @@ The required parts of the templates are in the following classes
     ```
 2. Models
     ```python
-   from torch.nn import Module
-   class NetExamples(Module):
-       def __init__(self, **kwargs):
-           super(NetExamples, self).__init__()
-           ...
-    
-       def forward(self, input):  # TODO: match w Dataset output's dict
-           pred = ...
-           return dict(pred=pred)  # TODO: modify output
+   import torch.nn as nn
+   class NetExamples(nn.Module):
+    def __init__(self, upscale_factor):
+        super(NetExamples, self).__init__()
+        ...
+
+    def forward(self, **kwargs):
+        x = kwargs['input']
+        x = self.relu(self.conv1(x))
+        ...
+        return dict(pred=x)
 
     ```
 3. Loss
@@ -44,12 +47,14 @@ The required parts of the templates are in the following classes
            self.l1 = L1Loss()
            self.mse = MSELoss()
    
-       def forward(self, pred, target, **kwargs): # TODO: match w Dataset & Model output's dict
+       def forward(self, **kwargs): 
+           pred = kwargs['pred']  # TODO: match w Dataset & Model output's dict
+           target = kwargs['target']
            mse = self.mse(target, pred)
            l1 = self.alpha * self.l1(pred, target)
            loss = l1 + mse
    
-           return loss, dict(l1=l1.item(), mse=mse.item())   # TODO: modify output
+           return loss, dict(l1=l1.item(), mse=mse.item())   # TODO: modify output as needed
     ```
 4. Metrics
     ```python
@@ -59,13 +64,11 @@ The required parts of the templates are in the following classes
            self.len = dataset_len
            self.dict = {'ergas': 0, 'psnr': 0, 'ssim': 0, 'sam': 0} # TODO: modify metrics
        
-       def add_metrics(self, pred, target):  # TODO: match w Dataset & Model output's dict     
+       def add_metrics(self, **kwargs):
+           pred = kwargs['pred']  # TODO: match w Dataset & Model output's dict
+           target = kwargs['target']
            ...  
-       
-       def __repr__(self):
-           for k, v in self.dict.items():
-               self.__setitem__(k, v)
-               return super().__repr__()    
+
     ```
 5. TensorboardWriter
     ```python
@@ -115,5 +118,17 @@ EVAL_FREQ=100  # % frequency to print to tensorboard
 ## Features
 ### Command-line interface
 ### Tensorboard 
+You will get without more implementation the following charts, stored under the path
+```python
+f"{os.environ['SAVE_PATH']}/{dataset}/{dt.now().strftime('%Y-%m-%d')}/{model}"
+```
+
+#### Scalars
+![losses.png](doc/img/losses.png)
+![metrics.png](doc/img/metrics.png)
+#### Images
+![images.png](doc/img/images.png)
+#### Params & Best Metrics
+![metrics.png](doc/img/best.png)
 ### CSV writer
 

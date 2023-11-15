@@ -223,8 +223,8 @@ class Experiment:
 
     @staticmethod
     def _set_loss_components(epoch_loss_components, loss_components):
-        for k in epoch_loss_components.keys():
-            v = loss_components[k].cpu().detach().numpy()
+        for k in loss_components.keys():
+            v = loss_components[k]
             try:
                 epoch_loss_components[k].append(v)
             except KeyError:
