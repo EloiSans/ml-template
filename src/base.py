@@ -255,7 +255,7 @@ class ParseKwargs(argparse.Action):
         for value in values:
             key, value = value.split('=')
             if self.CHOICES and key not in self.CHOICES.keys():
-                print(f"{parser.prog}: error: argument {option_string}: invalid choice: '{key}' (choose from {list(self.CHOICES.keys())})")
+                print(f"{parser.prog}: warning: argument {option_string}: invalid choice: '{key}' (choose from {list(self.CHOICES.keys())})")
             else:
                 getattr(namespace, self.dest)[key] = self._parse(value)
 

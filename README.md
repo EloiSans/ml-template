@@ -134,7 +134,7 @@ class LossParser(ParseKwargs):
 class OptimParser(ParseKwargs):
     CHOICES = {
         "lr": 1e-3,
-        "scheduler": 'ReduceLROnPlateau',
+        "scheduler": "ReduceLROnPlateau",
     }
 
 
@@ -142,7 +142,7 @@ class TrainParser(ParseKwargs):
     CHOICES = {
         "max_epochs": 1000,
         "batch_size": 1,
-        "metric_track_key": 'psnr',
+        "metric_track_key": "psnr",
         "metric_track_mode": "min"
     }
 ```
@@ -163,7 +163,14 @@ usage: main.py [-h] [--dataset {example}] [--model {example}] [--loss {example}]
                     [--loss-params [LOSS_PARAMS ...]] [--optim-params [OPTIM_PARAMS ...]]
                     [--train-params [TRAIN_PARAMS ...]] [--resume_path RESUME_PATH]
 ```
-Don't worry int, float and str will be parsed correctly
+Example usage
+```bash
+python main.py --train-params max_epochs=2000 --loss-parser upscale_factor=4 --optim-params lr=1e-5 
+```
+Description:
+1. Any int, float and str will be parsed correctly
+2. Params not in command line will be read from the config.py classes
+3. Params not set in config.py classes will be invalid, but not raising error
 ### Tensorboard 
 You will get Tensorboard's events in the path
 ```python
