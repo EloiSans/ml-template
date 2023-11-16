@@ -83,11 +83,6 @@ class Experiment:
 
         model, start_epoch = self._init_model()
 
-        model = model.float()
-        model.to(self.device)
-
-        self.optimizer = self.optimizer(model.parameters(), **self.optim_params)
-        self.scheduler = self.scheduler(self.optimizer, **self.scheduler_params)
         self.writer.add_model_params(model)
         for epoch in range(start_epoch, self.max_epochs):
             model.train()
@@ -103,10 +98,10 @@ class Experiment:
 
             if epoch % self.eval_n == 0:
                 self.writer.add_losses(train_loss, train_loss_comp, val_loss, val_loss_comp, epoch)
+                self.writer.add_metrics(val_metrics, VAL, epoch)
 
             if self._is_best_metric(val_metrics):
                 self.writer.add_text("best metrics epoch in validation", str(val_metrics), epoch)
-                self.writer.add_metrics(val_metrics, VAL, epoch)
                 self._save_model(model, 'best', epoch)
 
             self._save_model(model, 'last', epoch)
@@ -139,16 +134,27 @@ class Experiment:
         except FileExistsError:
             pass
         save_path = self.save_path + f'/ckpt/weights_{version}.pth'
-        ckpt = {'experiment': self.experiment, 'model': model, 'epoch': epoch}
+        ckpt = {'experiment': self.experiment, 'model': model, 'epoch': epoch,
+                'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict()}
         torch.save(ckpt, save_path)
 
     def _init_model(self):
         if self.resume_path is not None:
             ckpt = torch.load(self.resume_path, map_location=self.device)
             model = ckpt['model']
+            model = model.float()
+            model.to(self.device)
+            self.optimizer = self.optimizer(model.parameters(), **self.optim_params)
+            self.optimizer.load_state_dict(ckpt['optimizer'])
+            self.scheduler = self.scheduler(self.optimizer, **self.scheduler_params)
+            self.scheduler.load_state_dict(ckpt['scheduler'])
             start_epoch = ckpt.get('epoch', 0) + 1
         else:
             model = self.model(**self.model_params)
+            model = model.float()
+            model.to(self.device)
+            self.optimizer = self.optimizer(model.parameters(), **self.optim_params)
+            self.scheduler = self.scheduler(self.optimizer, **self.scheduler_params)
             start_epoch = 0
 
         return model, start_epoch

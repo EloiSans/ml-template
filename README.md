@@ -107,6 +107,45 @@ The required parts of the templates are in the following classes
            # TODO: add transforms depending on self.model_name or self.dataset_name
            return image
     ```
+All the _ _ init _ _ params are set in the config.py in the respective class
+```python
+from src.base import ParseKwargs
+
+
+class DataParser(ParseKwargs):
+    CHOICES = {
+        "crop_size": 32,
+        "upscale_factor": 4
+    }
+    
+
+class ModelParser(ParseKwargs):
+    CHOICES = {
+        "upscale_factor": 4
+    }
+
+
+class LossParser(ParseKwargs):
+    CHOICES = {
+        "alpha": 0.1
+    }
+
+
+class OptimParser(ParseKwargs):
+    CHOICES = {
+        "lr": 1e-3,
+        "scheduler": 'ReduceLROnPlateau',
+    }
+
+
+class TrainParser(ParseKwargs):
+    CHOICES = {
+        "max_epochs": 1000,
+        "batch_size": 1,
+        "metric_track_key": 'psnr',
+        "metric_track_mode": "min"
+    }
+```
 ### Env file
 Add an .env file in the project's root path with the following envariables
 ```ini
@@ -117,12 +156,20 @@ EVAL_FREQ=100  # % frequency to print to tensorboard
 
 ## Features
 ### Command-line interface
+In main.py we can call any parameter defined in config.py
+```bash
+usage: main.py [-h] [--dataset {example}] [--model {example}] [--loss {example}] [--optimizer {example}]
+                    [--data-params [DATA_PARAMS ...]] [--model-params [MODEL_PARAMS ...]]
+                    [--loss-params [LOSS_PARAMS ...]] [--optim-params [OPTIM_PARAMS ...]]
+                    [--train-params [TRAIN_PARAMS ...]] [--resume_path RESUME_PATH]
+```
+Don't worry int, float and str will be parsed correctly
 ### Tensorboard 
-You will get without more implementation the following charts, stored under the path
+You will get Tensorboard's events in the path
 ```python
 f"{os.environ['SAVE_PATH']}/{dataset}/{dt.now().strftime('%Y-%m-%d')}/{model}"
 ```
-
+By default, the following charts are produced
 #### Scalars
 ![losses.png](doc/img/losses.png)
 ![metrics.png](doc/img/metrics.png)
@@ -131,4 +178,10 @@ f"{os.environ['SAVE_PATH']}/{dataset}/{dt.now().strftime('%Y-%m-%d')}/{model}"
 #### Params & Best Metrics
 ![metrics.png](doc/img/best.png)
 ### CSV writer
+Work in progress...
+## Example
+Run example with the command
+```bash
+python main.py
+```
 
