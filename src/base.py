@@ -128,6 +128,24 @@ class Experiment:
         self.writer.add_metrics_to_csv(csv_save_dict)
         return
 
+    def classical_methods(self, output_path):
+        self.writer = FileWriter(self.model_name, self.dataset_name, output_path)
+
+        dataset_train = self.dataset(**self.data_params, fold=TRAIN)
+        data_loader = DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=self.workers)
+        metrics = self.metric_calculator(len(data_loader))
+
+        method = self.model
+
+        for idx, batch in enumerate(data_loader):
+            input_data = {k: v.to(self.device).squeeze(0).permute(1, 2, 0).numpy() for k, v in batch.items()}
+            output_data = method(**input_data)
+            input_data = {k: torch.from_numpy(v).permute(2, 0, 1).unsqueeze(0) for k, v in input_data.items()}
+            output_data = {k: torch.from_numpy(v).permute(2, 0, 1).unsqueeze(0) for k, v in output_data.items()}
+            metrics.add_metrics(**input_data, **output_data)
+        csv_save_dict = dict(**metrics.dict, name=self.model_name)
+        self.writer.add_metrics_to_csv(csv_save_dict)
+
     def _save_model(self, model, version, epoch: int = None):
         try:
             os.makedirs(self.save_path + '/ckpt/')

@@ -24,10 +24,14 @@ if __name__ == "__main__":
     parser.add_argument("--optim-params", nargs='*', action=OptimParser, default=OptimParser.CHOICES, help="Optim parameters")
     parser.add_argument("--train-params", nargs='*', action=TrainParser, default=TrainParser.CHOICES, help="Train parameters")
 
-    parser.add_argument("--resume_path", type=str, help="Resume path")
+    parser.add_argument("--resume-path", type=str, help="Resume path")
+    parser.add_argument("--output-path", type=str, default="runs/", help="Output path")
 
     args = parser.parse_args()
-    # print(args.__dict__['model_params'])
-    args_dict = args.__dict__
-    exp = Experiment(**args_dict)
-    exp.train()
+    exp = Experiment(**args.__dict__)
+    if args.method == 'train':
+        exp.train()
+    elif args.method == 'test':
+        exp.test(args.output_path)
+    elif args.method == 'classic_methods':
+        exp.classical_methods(args.output_path)
