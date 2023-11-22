@@ -189,6 +189,6 @@ Work in progress...
 ## Example
 Run example with the command
 ```bash
-python main.py
+python main.py train
 ```
 
