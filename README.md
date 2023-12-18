@@ -1,6 +1,20 @@
 # ml-template
 This repository is a template for pytorch's projects for image processing.
-
+<!-- TOC -->
+* [ml-template](#ml-template)
+  * [Structure](#structure)
+    * [Input & Output](#input--output)
+    * [Classes' examples](#classes-examples)
+    * [Env file](#env-file)
+  * [Features](#features)
+    * [Command-line interface](#command-line-interface)
+    * [Tensorboard](#tensorboard)
+      * [Scalars](#scalars)
+      * [Images](#images)
+      * [Params & Best Metrics](#params--best-metrics)
+    * [CSV writer](#csv-writer)
+  * [Example](#example)
+<!-- TOC -->
 ## Structure
 ### Input & Output
 Structure the code with the following rules:
@@ -30,7 +44,7 @@ The required parts of the templates are in the following classes
    from torch.utils.data import Dataset
  
    class DatasetExample(Dataset):
-       def __init__(self, fold, **kwargs):
+       def __init__(self, fold, **kwargs): # Fold is required
            super(DatasetExample, self).__init__()
            
    
@@ -51,9 +65,8 @@ The required parts of the templates are in the following classes
         super(NetExamples, self).__init__()
         ...
 
-    def forward(self, **kwargs):
-        x = kwargs['input']
-        x = self.relu(self.conv1(x))
+    def forward(self, input, **kwargs):
+        input = self.relu(self.conv1(input))
         ...
         return dict(pred=x)
 
@@ -68,9 +81,7 @@ The required parts of the templates are in the following classes
            self.l1 = L1Loss()
            self.mse = MSELoss()
    
-       def forward(self, **kwargs): 
-           pred = kwargs['pred']  # TODO: match w Dataset & Model output's dict
-           target = kwargs['target']
+       def forward(self, pred, target, **kwargs): # TODO: match w Dataset & Model output's dict
            mse = self.mse(target, pred)
            l1 = self.alpha * self.l1(pred, target)
            loss = l1 + mse
