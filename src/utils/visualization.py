@@ -66,18 +66,8 @@ class FileWriter:
     def __init__(self, model_name, dataset_name, output_path):
         self.model_name = model_name
         self.dataset_name = dataset_name
-        self.output_path = self._get_output_path(output_path)
+        self.output_path = output_path
         self.csv_path = join(output_path, f'{dataset_name}_metrics.csv')
-
-    @staticmethod
-    def _get_output_path(output_path):
-        path = join(output_path, 'results')
-        try:
-            os.makedirs(path, exist_ok=True)
-        except FileExistsError:
-            pass
-        finally:
-            return path
 
     def add_images(self, input_data, output_data, phase, step):
         for k, v in input_data.items():

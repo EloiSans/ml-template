@@ -25,15 +25,18 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 class Experiment:
     def __init__(self, dataset: str, model: str, loss: str, optimizer: str,
-                 data_params: dict, model_params: dict, loss_params: dict, optim_params: dict,
-                 train_params: dict, resume_path: str = None, **kwargs):
+                 data_params: dict, model_params: dict, loss_params: dict, optim_params: dict, noise_params: dict,
+                 train_params: dict, resume_path: str = None,
+                 **kwargs):
         self.experiment = {'dataset': dataset, 'model': model, 'loss': loss, 'optimizer': optimizer,
                            'data_params': data_params, 'model_params': model_params, 'loss_params': loss_params,
-                           'optim_params': optim_params, 'train_params': train_params, 'resume_path': resume_path}
+                           'optim_params': optim_params, 'noise_params': noise_params,
+                           'train_params': train_params, 'resume_path': resume_path}
 
         self.dataset_name = dataset
         self.dataset = dict_dataset[dataset]
         self.data_params = data_params
+        self.noise_params = noise_params
 
         self.model_name = model
         self.model = dict_model[model]
@@ -47,7 +50,9 @@ class Experiment:
 
         self.device = torch.device(train_params.get('device')) if train_params.get('device') else device
         self.eval_n = max(int(train_params['max_epochs'] * (float(os.environ.get('EVAL_FREQ', 100)) / 100)), 1)
-        self.save_path = os.path.join(os.environ["SAVE_PATH"], dataset, dt.now().strftime("%Y-%m-%d"), model)
+        self.output_path = os.path.join(os.environ["SAVE_PATH"], dataset, model)
+        self.date = dt.now().strftime("%Y-%m-%d")
+        self.save_path = os.path.join(self.output_path, self.date)
         self.max_epochs = train_params['max_epochs']
         self.batch_size = train_params['batch_size']
 
@@ -75,10 +80,10 @@ class Experiment:
         self.writer = TensorboardWriter(self.model, self.save_path)
 
         # training and validation data loaders
-        dataset_train = self.dataset(**self.data_params, fold=TRAIN)
+        dataset_train = self.dataset(**self.data_params, fold=TRAIN, device=self.device)
         train_loader = DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=self.workers)
 
-        dataset_val = self.dataset(**self.data_params, fold=VAL)
+        dataset_val = self.dataset(**self.data_params, fold=VAL, device=self.device)
         val_loader = DataLoader(dataset_val, batch_size=3, shuffle=False, num_workers=self.workers)
 
         model, start_epoch = self._init_model()
@@ -106,15 +111,16 @@ class Experiment:
 
             self._save_model(model, 'last', epoch)
         self.writer.close()
+        self.test(self.output_path, model)
 
-    def test(self, output_path):
+    def test(self, output_path, model=None):
         self.writer = FileWriter(self.model_name, self.dataset_name, output_path)
 
-        dataset = self.dataset(**self.data_params, fold=TEST)
+        dataset = self.dataset(**self.data_params, fold=TEST, noise_params=self.noise_params, device=self.device)
         data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.workers)
 
-        model, _ = self._init_model()
-        total_parameters = sum(p.numel() for p in model.parameters())
+        model, _ = self._init_model() if model is None else model, None
+        total_parameters = int(sum(p.numel() for p in model.parameters()))
 
         for param in model.parameters():
             param.requires_grad = False
@@ -123,7 +129,7 @@ class Experiment:
             model.eval()
             loss, loss_comp, metrics = self._main_phase(model, data_loader, VAL)
 
-        csv_save_dict = dict(**metrics, name=self.model_name, params=total_parameters)
+        csv_save_dict = dict(**metrics, name=self.model_name, params=total_parameters, date=self.date)
 
         self.writer.add_metrics_to_csv(csv_save_dict)
         return
@@ -225,7 +231,7 @@ class Experiment:
             epoch_loss_components[k] = np.array(epoch_loss_components[k]).mean()
 
         epoch_loss = np.array(epoch_loss).mean()
-        if epoch % self.eval_n == 0:
+        if epoch and epoch % self.eval_n == 0:
             self.writer.add_images(self.images, phase, epoch)
             self.writer.add_metrics(metrics.dict, phase, epoch)
 
@@ -286,5 +292,10 @@ class ParseKwargs(argparse.Action):
         try:
             return float(data)
         except ValueError:
+            pass
+        try:
+            assert data.lower() in ["true", "false"]
+            return True if data.lower() == "true" else False
+        except AssertionError:
             pass
         return data
