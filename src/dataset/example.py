@@ -8,6 +8,8 @@ from torch.utils.data import Dataset
 from PIL import Image
 from torchvision.transforms import Compose, CenterCrop, ToTensor, Resize
 
+from src.utils.noise import add_noise
+
 
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg"])
@@ -45,7 +47,7 @@ def download_bsd300():
 
 
 class DatasetExample(Dataset):
-    def __init__(self, crop_size, upscale_factor, fold):
+    def __init__(self, crop_size, upscale_factor, fold, device, limit=None, noise=None, noise_params=None, **kwargs):
         super(DatasetExample, self).__init__()
         image_dir = join(os.environ['DATASET_PATH'], "BSDS300")
         download_bsd300()
@@ -55,6 +57,9 @@ class DatasetExample(Dataset):
 
         self.input_transform = self._input_transform(crop_size, upscale_factor)
         self.target_transform = self._target_transform(crop_size)
+        self.limit = limit
+        self.noise = noise
+        self.noise_params = noise_params
 
     def __getitem__(self, index):
         input = load_img(self.image_filenames[index])
@@ -63,11 +68,14 @@ class DatasetExample(Dataset):
             input = self.input_transform(input)
         if self.target_transform:
             target = self.target_transform(target)
+        if self.noise:
+            input = add_noise(input, self.noise, self.noise_params, )
 
         return dict(input=input, target=target)
 
     def __len__(self):
-        return len(self.image_filenames)
+        _len = len(self.image_filenames)
+        return _len if self.limit is None else min(_len, self.limit)
 
     @staticmethod
     def _input_transform(crop_size, upscale_factor):
