@@ -24,6 +24,7 @@ if __name__ == '__main__':
     MainArguments.add_argument("--grouped", action=BooleanOptionalAction, default=True)
     MainArguments.add_argument("--shuffle", action=BooleanOptionalAction, default=True)
     args = MainArguments.parse_args()
+
     device = args.train_params['device']
     dataset = dict_dataset[args.dataset](**args.data_params, fold=TRAIN, limit=args.max_images, device=device)
     data_loader = DataLoader(dataset, batch_size=args.max_images, shuffle=args.shuffle,

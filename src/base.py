@@ -119,7 +119,10 @@ class Experiment:
         dataset = self.dataset(**self.data_params, fold=TEST, noise_params=self.noise_params, device=self.device)
         data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.workers)
 
-        model, _ = self._init_model() if model is None else model, None
+        if model:
+            pass
+        else:
+            model, _ = self._init_model()
         total_parameters = int(sum(p.numel() for p in model.parameters()))
 
         for param in model.parameters():
@@ -153,11 +156,8 @@ class Experiment:
         self.writer.add_metrics_to_csv(csv_save_dict)
 
     def _save_model(self, model, version, epoch: int = None):
-        try:
-            os.makedirs(self.save_path + '/ckpt/')
-        except FileExistsError:
-            pass
-        save_path = self.save_path + f'/ckpt/weights_{version}.pth'
+        os.makedirs(os.path.join(self.save_path, 'ckpt'), exist_ok=True)
+        save_path = os.path.join(self.save_path, 'ckpt', f'weights_{version}.pth')
         ckpt = {'experiment': self.experiment, 'model': model, 'epoch': epoch,
                 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict()}
         torch.save(ckpt, save_path)
